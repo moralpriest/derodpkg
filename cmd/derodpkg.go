@@ -22,7 +22,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var command_line string = `derod 
+var commandLine string = `derod 
 DERO : A secure, private blockchain with smart-contracts
 
 Usage:
@@ -52,115 +52,112 @@ Options:
   --prune-history=<50>	prunes blockchain history until the specific topo_height
 `
 
-var Exit_In_Progress = make(chan bool)
-var gracefulStop = make(chan os.Signal, 1)
-
-var l *readline.Instance
-
-// Do we need both? What purpose if this is solely derod and not for overall logging in chain software
-var logger logr.Logger
-
-// global logger all components will use it with context
-var Logger logr.Logger = logr.Discard() // default discard all logs
-
-var completer = readline.NewPrefixCompleter()
-
-var params = map[string]interface{}{}
-
 func filterInput(r rune) (rune, bool) {
 	switch r {
-	// block CtrlZ feature
 	case readline.CharCtrlZ:
 		return r, false
 	}
 	return r, true
 }
 
-func InitializeDerod(initparams map[string]interface{}) (chain *blockchain.Blockchain) {
+// Daemon wraps the DERO daemon as a service instance.
+type Daemon struct {
+	params      map[string]interface{}
+	chain       *blockchain.Blockchain
+	rpcserver   *derodrpc.RPCServer
+	logger      logr.Logger
+	rl          *readline.Instance
+	initialized bool
+	started     bool
+}
+
+// NewDaemon creates a new Daemon instance with the provided parameters.
+func NewDaemon(initparams map[string]interface{}) (*Daemon, error) {
+	if initparams == nil {
+		initparams = make(map[string]interface{})
+	}
+	return &Daemon{
+		params: initparams,
+		logger: logr.Discard(),
+	}, nil
+}
+
+// Initialize sets up logging, network, and starts the blockchain.
+// Must be called before Start.
+func (d *Daemon) Initialize() error {
 	runtime.MemProfileRate = 0
-	var err error
 
-	globals.Arguments, err = docopt.Parse(command_line, nil, true, config.Version.String(), false)
-
-	// Default testnet to false if it is not defined, else initnetwork cannot be ran within globals.Initialize()
-	if initparams["--testnet"] == nil {
-		initparams["--testnet"] = false
+	if d.params["--testnet"] == nil {
+		d.params["--testnet"] = false
 	}
 
-	for k, v := range initparams {
+	if _, err := docopt.Parse(commandLine, nil, true, config.Version.String(), false); err != nil {
+		return fmt.Errorf("error parsing command line: %w", err)
+	}
+
+	for k, v := range d.params {
 		globals.Arguments[k] = v
 	}
 
-	// We need to initialize readline first, so it changes stderr to ansi processor on windows
-	l, err = readline.NewEx(&readline.Config{
-		Prompt:          "\033[92mDERO:\033[32m>>>\033[0m ",
-		HistoryFile:     filepath.Join(os.TempDir(), "derod_readline.tmp"),
-		AutoComplete:    completer,
-		InterruptPrompt: "^C",
-		EOFPrompt:       "exit",
-
+	var err error
+	d.rl, err = readline.NewEx(&readline.Config{
+		Prompt:              "\033[92mDERO:\033[32m>>>",
+		HistoryFile:         filepath.Join(os.TempDir(), "derod_readline.tmp"),
+		AutoComplete:        readline.NewPrefixCompleter(),
+		InterruptPrompt:     "^C",
+		EOFPrompt:           "exit",
 		HistorySearchFold:   true,
 		FuncFilterInputRune: filterInput,
 	})
 	if err != nil {
-		fmt.Printf("Error starting readline err: %s\n", err)
-		return
+		return fmt.Errorf("error starting readline: %w", err)
 	}
-	defer l.Close()
 
-	var network string
-	switch globals.IsMainnet() {
-	case false:
+	network := "mainnet"
+	if !globals.IsMainnet() {
 		network = "testnet"
-	default:
-		network = "mainnet"
 	}
 
-	exename, _ := os.Executable()
-	globals.InitializeLog(l.Stdout(), &lumberjack.Logger{
+	exename, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("error getting executable path: %w", err)
+	}
+
+	globals.InitializeLog(d.rl.Stdout(), &lumberjack.Logger{
 		Filename:   exename + "_daemon_" + network + ".log",
-		MaxSize:    100, // megabytes
+		MaxSize:    100,
 		MaxBackups: 2,
 	})
 
-	logger = Logger.WithName("derod")
+	d.logger = d.logger.WithName("derod")
+	d.logger.Info("DERO HE daemon: It is an alpha version, use it for testing/evaluations purpose only.")
+	d.logger.Info("Copyright 2017-2021 DERO Project. All rights reserved.")
+	d.logger.Info("", "OS", runtime.GOOS, "ARCH", runtime.GOARCH, "GOMAXPROCS", runtime.GOMAXPROCS(0))
+	d.logger.Info("", "Version", config.Version.String())
+	d.logger.V(1).Info("", "Arguments", globals.Arguments)
 
-	logger.Info("DERO HE daemon :  It is an alpha version, use it for testing/evaluations purpose only.")
-	logger.Info("Copyright 2017-2021 DERO Project. All rights reserved.")
-	logger.Info("", "OS", runtime.GOOS, "ARCH", runtime.GOARCH, "GOMAXPROCS", runtime.GOMAXPROCS(0))
-	logger.Info("", "Version", config.Version.String())
+	globals.Initialize()
+	d.logger.V(0).Info("", "MODE", globals.Config.Name)
+	d.logger.V(0).Info("", "Daemon data directory", globals.GetDataDirectory())
 
-	logger.V(1).Info("", "Arguments", globals.Arguments)
-
-	globals.Initialize() // setup network and proxy
-
-	logger.V(0).Info("", "MODE", globals.Config.Name)
-	logger.V(0).Info("", "Daemon data directory", globals.GetDataDirectory())
-
-	// check  whether we are pruning, if requested do so
-	prune_topo := int64(50)
-	if _, ok := globals.Arguments["--prune-history"]; ok && globals.Arguments["--prune-history"] != nil { // user specified a limit, use it if possible
+	if _, ok := globals.Arguments["--prune-history"]; ok && globals.Arguments["--prune-history"] != nil {
+		pruneTopo := int64(50)
 		i, err := strconv.ParseInt(globals.Arguments["--prune-history"].(string), 10, 64)
 		if err != nil {
-			logger.Error(err, "error Parsing --prune-history ")
-			return
-		} else {
-			if i <= 1 {
-				logger.Error(fmt.Errorf("--prune-history should be positive and more than 1"), "invalid argument")
-				return
-			} else {
-				prune_topo = i
-			}
+			d.logger.Error(err, "error parsing --prune-history")
+			return fmt.Errorf("invalid --prune-history: %w", err)
 		}
-		logger.Info("will prune history till", "topo_height", prune_topo)
-
-		if err := blockchain.Prune_Blockchain(prune_topo); err != nil {
-			logger.Error(err, "Error pruning blockchain ")
-			return
-		} else {
-			logger.Info("blockchain pruning successful")
-
+		if i <= 1 {
+			return fmt.Errorf("--prune-history should be positive and more than 1")
 		}
+		pruneTopo = i
+		d.logger.Info("will prune history till", "topo_height", pruneTopo)
+
+		if err := blockchain.Prune_Blockchain(pruneTopo); err != nil {
+			d.logger.Error(err, "error pruning blockchain")
+			return fmt.Errorf("error pruning blockchain: %w", err)
+		}
+		d.logger.Info("blockchain pruning successful")
 	}
 
 	if _, ok := globals.Arguments["--timeisinsync"]; ok {
@@ -168,109 +165,181 @@ func InitializeDerod(initparams map[string]interface{}) (chain *blockchain.Block
 	}
 
 	if _, ok := globals.Arguments["--integrator-address"]; ok {
-		params["--integrator-address"] = globals.Arguments["--integrator-address"]
+		d.params["--integrator-address"] = globals.Arguments["--integrator-address"]
 	}
 
-	chain, err = blockchain.Blockchain_Start(params)
+	d.chain, err = blockchain.Blockchain_Start(d.params)
 	if err != nil {
-		logger.Error(err, "Error starting blockchain")
-		return
+		d.logger.Error(err, "error starting blockchain")
+		return fmt.Errorf("error starting blockchain: %w", err)
 	}
+	d.params["chain"] = d.chain
 
-	params["chain"] = chain
-
-	// since user is using a proxy, he definitely does not want to give out his IP
 	if globals.Arguments["--socks-proxy"] != nil {
 		globals.Arguments["--p2p-bind"] = ":0"
-		logger.Info("Disabling P2P server since we are using socks proxy")
+		d.logger.Info("Disabling P2P server since we are using socks proxy")
 	}
 
-	return
+	d.initialized = true
+	return nil
 }
 
-func StartDerod(chain *blockchain.Blockchain) (rpcserver *derodrpc.RPCServer) {
-	p2p.P2P_Init(params)
-	rpcserver, _ = derodrpc.RPCServer_Start(params)
+// Start initializes P2P, starts the RPC server, and begins background goroutines.
+// Requires Initialize() to be called first.
+func (d *Daemon) Start() error {
+	if !d.initialized {
+		return fmt.Errorf("daemon must be initialized before starting")
+	}
+	if d.started {
+		return fmt.Errorf("daemon already started")
+	}
+
+	p2p.P2P_Init(d.params)
+
+	var err error
+	d.rpcserver, err = derodrpc.RPCServer_Start(d.params)
+	if err != nil {
+		return fmt.Errorf("error starting RPC server: %w", err)
+	}
 
 	go derodrpc.Getwork_server()
 
-	// setup function pointers
-	chain.P2P_Block_Relayer = func(cbl *block.Complete_Block, peerid uint64) {
+	d.chain.P2P_Block_Relayer = func(cbl *block.Complete_Block, peerid uint64) {
 		p2p.Broadcast_Block(cbl, peerid)
 	}
-
-	chain.P2P_MiniBlock_Relayer = func(mbl block.MiniBlock, peerid uint64) {
+	d.chain.P2P_MiniBlock_Relayer = func(mbl block.MiniBlock, peerid uint64) {
 		p2p.Broadcast_MiniBlock(mbl, peerid)
 	}
 
+	// Corruption fix loop
 	{
-		current_blid, err := chain.Load_Block_Topological_order_at_index(17600)
+		currentBlid, err := d.chain.Load_Block_Topological_order_at_index(17600)
 		if err == nil {
-
-			current_blid := current_blid
 			for {
-				height := chain.Load_Height_for_BL_ID(current_blid)
-
+				height := d.chain.Load_Height_for_BL_ID(currentBlid)
 				if height < 17500 {
 					break
 				}
 
-				r, err := chain.Store.Topo_store.Read(int64(height))
+				r, err := d.chain.Store.Topo_store.Read(int64(height))
 				if err != nil {
-					panic(err)
+					return fmt.Errorf("error reading topo store: %w", err)
 				}
-				if r.BLOCK_ID != current_blid {
-					fmt.Printf("Fixing corruption r %+v  , current_blid %s current_blid_height %d\n", r, current_blid, height)
+				if r.BLOCK_ID != currentBlid {
+					d.logger.Info("fixing corruption", "r", r, "current_blid", currentBlid, "height", height)
 
-					fix_commit_version, err := chain.ReadBlockSnapshotVersion(current_blid)
+					fixCommitVersion, err := d.chain.ReadBlockSnapshotVersion(currentBlid)
 					if err != nil {
-						panic(err)
+						return fmt.Errorf("error reading block snapshot version: %w", err)
 					}
 
-					chain.Store.Topo_store.Write(int64(height), current_blid, fix_commit_version, int64(height))
-
+					if err := d.chain.Store.Topo_store.Write(int64(height), currentBlid, fixCommitVersion, int64(height)); err != nil {
+						return fmt.Errorf("error writing topo store: %w", err)
+					}
 				}
 
-				fix_bl, err := chain.Load_BL_FROM_ID(current_blid)
+				fixBl, err := d.chain.Load_BL_FROM_ID(currentBlid)
 				if err != nil {
-					panic(err)
+					return fmt.Errorf("error loading block from ID: %w", err)
 				}
-				current_blid = fix_bl.Tips[0]
+				currentBlid = fixBl.Tips[0]
 			}
 		}
 	}
-	globals.Cron.Start() // start cron jobs
 
-	// This tiny goroutine continuously updates status as required
+	globals.Cron.Start()
+
 	go func() {
 		for {
-			// Must keep miner count - getwork server uses miner count value to loop through and send jobs
 			derodrpc.CountMiners()
 			time.Sleep(1 * time.Second)
 		}
 	}()
 
-	setPasswordCfg := l.GenPasswordConfig()
+	setPasswordCfg := d.rl.GenPasswordConfig()
 	setPasswordCfg.SetListener(func(line []rune, pos int, key rune) (newLine []rune, newPos int, ok bool) {
-		l.SetPrompt(fmt.Sprintf("Enter password(%v): ", len(line)))
-		l.Refresh()
+		d.rl.SetPrompt(fmt.Sprintf("Enter password(%v): ", len(line)))
+		d.rl.Refresh()
 		return nil, 0, false
 	})
-	l.Refresh() // refresh the prompt
+	d.rl.Refresh()
 
-	return
+	d.started = true
+	return nil
 }
 
-func StopDerod(rpcserver *derodrpc.RPCServer, chain *blockchain.Blockchain) {
-	logger.Info("Exit in Progress, Please wait")
-	time.Sleep(100 * time.Millisecond) // give prompt update time to finish
+// Stop shuts down RPC, P2P, and blockchain subsystems.
+// Safe to call multiple times and on nil receiver.
+func (d *Daemon) Stop() error {
+	if d == nil {
+		return nil
+	}
+	if !d.started && !d.initialized {
+		return nil
+	}
 
-	rpcserver.RPCServer_Stop()
-	p2p.P2P_Shutdown() // shutdown p2p subsystem
-	chain.Shutdown()   // shutdown chain subsysem
+	d.logger.Info("Exit in Progress, Please wait")
+	time.Sleep(100 * time.Millisecond)
+
+	if d.rpcserver != nil {
+		d.rpcserver.RPCServer_Stop()
+	}
+	p2p.P2P_Shutdown()
+	if d.chain != nil {
+		d.chain.Shutdown()
+	}
 
 	for globals.Subsystem_Active > 0 {
-		logger.Info("Exit in Progress, Please wait.", "active subsystems", globals.Subsystem_Active)
+		d.logger.Info("Exit in Progress, Please wait.", "active subsystems", globals.Subsystem_Active)
 		time.Sleep(1000 * time.Millisecond)
 	}
+
+	if d.rl != nil {
+		d.rl.Close()
+	}
+
+	d.started = false
+	d.initialized = false
+	return nil
+}
+
+// Chain returns the blockchain instance.
+func (d *Daemon) Chain() *blockchain.Blockchain {
+	return d.chain
+}
+
+// RPCServer returns the RPC server instance.
+func (d *Daemon) RPCServer() *derodrpc.RPCServer {
+	return d.rpcserver
+}
+
+// Initialized returns whether the daemon has been initialized.
+func (d *Daemon) Initialized() bool {
+	return d.initialized
+}
+
+// Started returns whether the daemon has been started.
+func (d *Daemon) Started() bool {
+	return d.started
+}
+
+// Params returns the daemon's parameters map.
+func (d *Daemon) Params() map[string]interface{} {
+	return d.params
+}
+
+// GetParam retrieves a parameter value by key.
+func (d *Daemon) GetParam(key string) (interface{}, bool) {
+	v, ok := d.params[key]
+	return v, ok
+}
+
+// SetParam sets a parameter value by key.
+func (d *Daemon) SetParam(key string, value interface{}) {
+	d.params[key] = value
+}
+
+// RemoveParam removes a parameter by key.
+func (d *Daemon) RemoveParam(key string) {
+	delete(d.params, key)
 }

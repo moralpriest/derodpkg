@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os"
 	"os/signal"
 
@@ -9,22 +10,30 @@ import (
 
 func main() {
 	initparams := make(map[string]interface{})
-
-	// Define all input params for derod - need to be sure most/all are the default from standard command line parser as we are not using that here
 	initparams["--rpc-bind"] = "127.0.0.1:20202"
 	initparams["--p2p-bind"] = "127.0.0.1:20201"
 	initparams["--getwork-bind"] = "127.0.0.1:20200"
 
-	chain := derodpkg.InitializeDerod(initparams)
-	rpcserver := derodpkg.StartDerod(chain)
-
-	var gracefulStop = make(chan os.Signal, 1)
-	signal.Notify(gracefulStop, os.Interrupt) // listen to all signals
-	for {
-		sig := <-gracefulStop
-		if sig.String() == "interrupt" {
-			derodpkg.StopDerod(rpcserver, chain)
-			break
-		}
+	d, err := derodpkg.NewDaemon(initparams)
+	if err != nil {
+		log.Fatalf("failed to create daemon: %v", err)
 	}
+
+	if err := d.Initialize(); err != nil {
+		log.Fatalf("failed to initialize daemon: %v", err)
+	}
+
+	if err := d.Start(); err != nil {
+		log.Fatalf("failed to start daemon: %v", err)
+	}
+
+	defer func() {
+		if err := d.Stop(); err != nil {
+			log.Printf("error stopping daemon: %v", err)
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	<-sigCh
 }

@@ -1,0 +1,31 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build ./...
+    silent: true
+
+  test:
+    cmds:
+      - go test ./...
+    silent: true
+
+  vet:
+    cmds:
+      - go vet ./...
+    silent: true
+
+  lint:
+    cmds:
+      - golangci-lint run ./...
+    silent: true
+
+  tidy:
+    cmds:
+      - go mod tidy
+    silent: true
+
+  ci:
+    deps: [build, vet, test]
+    silent: true

@@ -20,6 +20,7 @@ require (
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984 // indirect
 	github.com/cespare/xxhash v1.1.0 // indirect
+	github.com/coder/websocket v1.8.14 // indirect
 	github.com/creachadair/jrpc2 v0.36.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
@@ -29,7 +30,6 @@ require (
 	github.com/go-logr/zapr v1.2.3 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/klauspost/compress v1.10.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.0.14 // indirect
 	github.com/klauspost/reedsolomon v1.10.0 // indirect
 	github.com/lesismal/llib v1.1.6 // indirect
@@ -59,5 +59,6 @@ require (
 	golang.org/x/xerrors v0.0.0-20220609144429-65e65417b02f // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	nhooyr.io/websocket v1.8.7 // indirect
 )
+
+replace github.com/deroproject/derohe => github.com/DEROFDN/derohe v0.0.0-20260314182501-a5071c97d5f2

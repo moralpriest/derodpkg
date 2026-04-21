@@ -46,14 +46,20 @@ func TestDaemon_StopNil(t *testing.T) {
 }
 
 func TestDaemon_StopBeforeInit(t *testing.T) {
-	d, _ := NewDaemon(nil)
+	d, err := NewDaemon(nil)
+	if err != nil {
+		t.Fatalf("NewDaemon failed: %v", err)
+	}
 	if err := d.Stop(); err != nil {
 		t.Errorf("Stop before init should not error, got: %v", err)
 	}
 }
 
 func TestDaemon_StartBeforeInit(t *testing.T) {
-	d, _ := NewDaemon(nil)
+	d, err := NewDaemon(nil)
+	if err != nil {
+		t.Fatalf("NewDaemon failed: %v", err)
+	}
 	if err := d.Start(); err == nil {
 		t.Error("expected error when Start is called before Initialize")
 	}
@@ -64,7 +70,10 @@ func TestDaemon_ParamAccessors(t *testing.T) {
 		"--rpc-bind": "127.0.0.1:20202",
 	}
 
-	d, _ := NewDaemon(params)
+	d, err := NewDaemon(params)
+	if err != nil {
+		t.Fatalf("NewDaemon failed: %v", err)
+	}
 
 	if v, ok := d.GetParam("--rpc-bind"); !ok || v != "127.0.0.1:20202" {
 		t.Error("expected --rpc-bind param to exist")

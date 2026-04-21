@@ -91,15 +91,16 @@ func (d *Daemon) Initialize() error {
 		d.params["--testnet"] = false
 	}
 
-	if _, err := docopt.Parse(commandLine, nil, true, config.Version.String(), false); err != nil {
+	args, err := docopt.Parse(commandLine, nil, true, config.Version.String(), false) //nolint:staticcheck // SA1019 - keeping for globals.Arguments compatibility
+	if err != nil {
 		return fmt.Errorf("error parsing command line: %w", err)
 	}
+	globals.Arguments = args
 
 	for k, v := range d.params {
 		globals.Arguments[k] = v
 	}
 
-	var err error
 	d.rl, err = readline.NewEx(&readline.Config{
 		Prompt:              "\033[92mDERO:\033[32m>>>",
 		HistoryFile:         filepath.Join(os.TempDir(), "derod_readline.tmp"),
@@ -140,17 +141,15 @@ func (d *Daemon) Initialize() error {
 	d.logger.V(0).Info("", "MODE", globals.Config.Name)
 	d.logger.V(0).Info("", "Daemon data directory", globals.GetDataDirectory())
 
-	if _, ok := globals.Arguments["--prune-history"]; ok && globals.Arguments["--prune-history"] != nil {
-		pruneTopo := int64(50)
-		i, err := strconv.ParseInt(globals.Arguments["--prune-history"].(string), 10, 64)
+	if pruneHistoryStr, ok := globals.Arguments["--prune-history"].(string); ok && pruneHistoryStr != "" {
+		pruneTopo, err := strconv.ParseInt(pruneHistoryStr, 10, 64)
 		if err != nil {
 			d.logger.Error(err, "error parsing --prune-history")
 			return fmt.Errorf("invalid --prune-history: %w", err)
 		}
-		if i <= 1 {
+		if pruneTopo <= 1 {
 			return fmt.Errorf("--prune-history should be positive and more than 1")
 		}
-		pruneTopo = i
 		d.logger.Info("will prune history till", "topo_height", pruneTopo)
 
 		if err := blockchain.Prune_Blockchain(pruneTopo); err != nil {
@@ -160,8 +159,8 @@ func (d *Daemon) Initialize() error {
 		d.logger.Info("blockchain pruning successful")
 	}
 
-	if _, ok := globals.Arguments["--timeisinsync"]; ok {
-		globals.TimeIsInSync = globals.Arguments["--timeisinsync"].(bool)
+	if timeInSync, ok := globals.Arguments["--timeisinsync"].(bool); ok {
+		globals.TimeIsInSync = timeInSync
 	}
 
 	if _, ok := globals.Arguments["--integrator-address"]; ok {
@@ -194,7 +193,9 @@ func (d *Daemon) Start() error {
 		return fmt.Errorf("daemon already started")
 	}
 
-	p2p.P2P_Init(d.params)
+	if err := p2p.P2P_Init(d.params); err != nil {
+		return fmt.Errorf("error initializing P2P: %w", err)
+	}
 
 	var err error
 	d.rpcserver, err = derodrpc.RPCServer_Start(d.params)
@@ -295,7 +296,9 @@ func (d *Daemon) Stop() error {
 	}
 
 	if d.rl != nil {
-		d.rl.Close()
+		if err := d.rl.Close(); err != nil {
+			d.logger.Error(err, "error closing readline")
+		}
 	}
 
 	d.started = false

@@ -1,8 +1,6 @@
 run:
   timeout: 5m
   go: '1.26'
-  skip-dirs:
-    - vendor
 
 linters:
   enable:
@@ -12,10 +10,6 @@ linters:
     - ineffassign
     - staticcheck
     - unused
-  disable:
-    - deadcode
-    - structcheck
-    - varcheck
 
 linters-settings:
   errcheck:
@@ -24,5 +18,7 @@ linters-settings:
 
 issues:
   exclude-use-default: false
+  exclude-dirs:
+    - vendor
   max-issues-per-linter: 0
   max-same-issues: 0

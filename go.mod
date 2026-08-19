@@ -1,4 +1,4 @@
-module github.com/civilware/derodpkg
+module github.com/moralpriest/derodpkg
 
 go 1.25.0
 

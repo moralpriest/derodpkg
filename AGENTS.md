@@ -1,14 +1,14 @@
 # AGENTS.md
 
 ## Project Overview
-- Go module (`github.com/civilware/derodpkg`)
+- Go module (`github.com/moralpriest/derodpkg`)
 - Library that wraps DERO daemon (`derod`) as an importable package
 - Real API in `cmd/derodpkg.go`; `main.go` is a standalone example
 - Built against Go 1.26 (as per go.mod)
 
 ## Installation
 ```bash
-go install github.com/civilware/derodpkg@latest
+go install github.com/moralpriest/derodpkg@latest
 ```
 
 ## Key API (Struct-Based)

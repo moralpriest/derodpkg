@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	derodpkg "github.com/civilware/derodpkg/cmd"
+	derodpkg "github.com/moralpriest/derodpkg/cmd"
 )
 
 func main() {

@@ -6,14 +6,14 @@ Derod starts out with a subset of parameters. It is important to either surface 
 
 ## Install
 ```
-go install github.com/civilware/derodpkg
+go install github.com/moralpriest/derodpkg
 ```
 
 ## Importing DERO Daemon Package
 You can either just import directly to the /cmd directory or define a name to leverage such as derodpkg for the import directory
 
 ```go
-import derodpkg "github.com/civilware/derodpkg/cmd"
+import derodpkg "github.com/moralpriest/derodpkg/cmd"
 ```
 
 ## Initializing DERO Daemon

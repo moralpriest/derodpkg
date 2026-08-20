@@ -1,8 +1,8 @@
 # derodpkg
-Importable package written in Golang to run DERO Daemon as a service within other applications/uses. Relies heavily on import cases from https://github.com/deroproject/derohe
+Importable package written in Golang to run DERO Daemon as a service within other applications/uses. Relies heavily on import cases from https://github.com/DEROFDN/derohe
 
 # Using In Your Application/Service
-Derod starts out with a subset of parameters. It is important to either surface a way to pass custom parameters or pre-define a list of parameters and their respective values. You can reference some options here: https://github.com/deroproject/derohe/blob/main/cmd/derod/main.go#L58
+Derod starts out with a subset of parameters. It is important to either surface a way to pass custom parameters or pre-define a list of parameters and their respective values. You can reference some options here: https://github.com/DEROFDN/derohe/blob/main/cmd/derod/main.go#L58
 
 ## Install
 ```
@@ -30,7 +30,7 @@ chain := derodpkg.InitializeDerod(initparams)
 ```
 
 ## Starting DERO Daemon
-After initializing, you can simply pass the returned chain (of type [*blockchain.Blockchain](https://github.com/deroproject/derohe/blob/main/blockchain/blockchain.go#L59)) as your input param and assign the output rpcserver of type [*rpc.RPCServer](https://github.com/deroproject/derohe/blob/main/cmd/derod/rpc/websocket_server.go#L54)
+After initializing, you can simply pass the returned chain (of type [*blockchain.Blockchain](https://github.com/DEROFDN/derohe/blob/main/blockchain/blockchain.go#L59)) as your input param and assign the output rpcserver of type [*rpc.RPCServer](https://github.com/DEROFDN/derohe/blob/main/cmd/derod/rpc/websocket_server.go#L54)
 
 ```go
 rpcserver := derodpkg.StartDerod(chain)

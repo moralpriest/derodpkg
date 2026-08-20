@@ -49,7 +49,7 @@ task ci       # build + vet + test
 ```
 
 ## Coupling Notice
-Strong dependency on `github.com/deroproject/derohe` (version 20230604). Do not upgrade without careful validation.
+Strong dependency on `github.com/DEROFDN/derohe` (community-dev). Do not upgrade without careful validation.
 
 ## CI
 GitHub Actions workflow in `.github/workflows/ci.yml` runs on push/PR to `dev` and `main`.

@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/chzyer/readline v1.5.1
-	github.com/DEROFDN/derohe v0.0.0-20260819152706-818010ea51e5
+	github.com/deroproject/derohe v0.0.0-20260821221519-e7cf5eb2c1f5
 	github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815
 	github.com/go-logr/logr v1.2.3
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
@@ -59,4 +59,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-
+replace github.com/deroproject/derohe => github.com/DEROFDN/derohe v0.0.0-20260821221519-e7cf5eb2c1f5

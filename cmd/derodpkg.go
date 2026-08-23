@@ -11,12 +11,12 @@ import (
 	"github.com/chzyer/readline"
 	"github.com/docopt/docopt-go"
 
-	"github.com/DEROFDN/derohe/block"
-	"github.com/DEROFDN/derohe/blockchain"
-	derodrpc "github.com/DEROFDN/derohe/cmd/derod/rpc"
-	"github.com/DEROFDN/derohe/config"
-	"github.com/DEROFDN/derohe/globals"
-	"github.com/DEROFDN/derohe/p2p"
+	"github.com/deroproject/derohe/block"
+	"github.com/deroproject/derohe/blockchain"
+	derodrpc "github.com/deroproject/derohe/cmd/derod/rpc"
+	"github.com/deroproject/derohe/config"
+	"github.com/deroproject/derohe/globals"
+	"github.com/deroproject/derohe/p2p"
 
 	"github.com/go-logr/logr"
 	"gopkg.in/natefinch/lumberjack.v2"
